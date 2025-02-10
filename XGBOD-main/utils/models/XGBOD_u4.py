@@ -24,7 +24,6 @@ class XGBOD_u4(BaseDetector):
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
-        # self.silent = silent
         self.objective = objective
         self.booster = booster
         self.n_jobs = n_jobs
@@ -91,7 +90,7 @@ class XGBOD_u4(BaseDetector):
         return self
 
     def decision_function(self, X):
-        check_is_fitted(self, ['clf', 'decision_scores', 'labels', 'scaler'])
+        check_is_fitted(self, ['clf', 'decision_scores_', 'labels', 'scaler'])
 
         X = check_array(X)
 
@@ -110,7 +109,7 @@ class XGBOD_u4(BaseDetector):
         return pred_scores.ravel()
 
     def predict(self, X):
-        check_is_fitted(self, ['clf', 'decision_scores', 'labels', 'scaler'])
+        check_is_fitted(self, ['clf', 'decision_scores_', 'labels', 'scaler'])
 
         X = check_array(X)
 
