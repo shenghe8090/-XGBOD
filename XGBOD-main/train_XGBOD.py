@@ -19,109 +19,106 @@ from xgboost import XGBClassifier
 from time import time as current_time
 import os
 from sklearn.metrics import precision_recall_curve
-#set the working directory
-os.chdir(r'd:\\研究区矿产预测数据')
+from joblib import Parallel, delayed
+# Set the working directory
+os.chdir(r'd:\Geochemical_Anomaly_Data')
 
 
 def run_model(clf_class, clf_params, clf_name, file_prefix, da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin, ymax,
               deposit):
-    print(f"{clf_name} modeling......Default")
+    print(f"{clf_name} modeling... Default")
 
     start_time = current_time()
 
-    # 初始化并训练检测器
+    # Initialize and train the model
     clf = clf_class(**clf_params)
     clf.fit(da, dep)
 
-    # 检查模型类型并获取异常分数或预测结果
+    # Check if the model has decision scores or predictions
     if hasattr(clf, 'decision_scores_'):
         decision_scores = clf.decision_scores_
     else:
         decision_scores = clf.predict(da)
 
-    # 数据后处理
+    # Post-processing of data
     distance = process.postprocess_data(ncases, d, decision_scores)
 
-    # 输出网格文件
+    # Output grid file
     DataInAndOut.output_grid_file(f"{file_prefix}_Anomaly.grd", colNum, linNum, xmin, xmax, ymin, ymax, distance)
 
-    # ROC分析
-    rocobj.compute_roc(1000, ncases, d, deposit, distance, f"{file_prefix}_AnomnalyRoc.txt",
-                       f"{file_prefix}_Anomalygain.txt", f"{file_prefix}_Anomalylift.txt")
+    # Perform ROC analysis
+    rocobj.compute_roc(1000, ncases, d, deposit, distance, f"{file_prefix}_AnomalyRoc.txt",
+                       f"{file_prefix}_AnomalyGain.txt", f"{file_prefix}_AnomalyLift.txt")
     area, se, z, aul = rocobj.compute_roc_area(ncases, d, deposit, distance)
-    print(f"area{clf_name} = {area}, se{clf_name} = {se}, z{clf_name} = {z}, aul{clf_name} = {aul}")
+    print(f"Area {clf_name} = {area}, SE {clf_name} = {se}, Z {clf_name} = {z}, AUL {clf_name} = {aul}")
 
     end_time = current_time()
-    print("time =", end_time - start_time)
+    print("Time elapsed:", end_time - start_time)
 
-    # 计算precision-recall曲线
+    # Compute precision-recall curve
     precision, recall, _ = precision_recall_curve(dep, decision_scores)
 
-    # 创建并写入数据到文本文件
-    file_path = f'C:\\Users\\DELL\\Desktop\\pr曲线文件\\{file_prefix}.txt'
+    # Save precision-recall data to file
+    file_path = f'C:\\Users\\DELL\\Desktop\\PR_Curve_Files\\{file_prefix}.txt'
     with open(file_path, 'w') as file:
         for p, r in zip(precision, recall):
             file.write(f'{p}\t{r}\n')
 
-if __name__ == '__main__':
 
-    #Controlling parameters
+if __name__ == '__main__':
+    # Define control parameters
     bins = 500
-    deposits = 500#the maximum number of the input mineral deposits
+    deposits = 500  # Maximum number of input mineral deposits
     tolerance = 0
 
-    #输入绘图区范围
+    # Define the study area boundaries
     xmin = 126.1137161
     xmax = 128.3113404
     ymin = 41.36324691
     ymax = 42.81881714
 
-    k = 100 #k is the number of rows
-    l = 150 #int((xmax - xmin)/(ymax - ymin) * k + 0.5) #l is the number of collumns
+    k = 100  # Number of rows
+    l = 150  # Number of columns
 
-    print ("k =",k)
-    print ("l =",l)
-    #construct class objects
+    print("Rows (k) =", k)
+    print("Columns (l) =", l)
+
+    # Create class instances
     inputfile = "DepositGridFileName.txt"
-    DataInAndOut = FileInputOutput(k,l,bins,deposits,xmin,xmax,ymin,ymax,inputfile)
+    DataInAndOut = FileInputOutput(k, l, bins, deposits, xmin, xmax, ymin, ymax, inputfile)
     rocobj = ROC_Analysis()
-    
-    
-    #DataInput
-    deposit,data,auc1,youden,zmax,ncases,ndim,linNum,colNum = DataInAndOut.construct_griddata_from_grid_Files()
 
+    # Load input data
+    deposit, data, auc1, youden, zmax, ncases, ndim, linNum, colNum = DataInAndOut.construct_griddata_from_grid_Files()
 
-    #Preprocessing 
+    # Preprocess data
     process = PrePostprocess()
-    d,da,dep,sample = process.preprocess_data(ncases,ndim,data,deposit)
+    d, da, dep, sample = process.preprocess_data(ncases, ndim, data, deposit)
 
+    # List of models to run
+    models = [
+        (XGBOD_uHBOS, {}, 'XGBOD_uHBOS'),
+        (XGBOD_uLOF, {}, 'XGBOD_uLOF'),
+        (XGBOD_uOCSVM, {}, 'XGBOD_uOCSVM'),
+        (XGBOD_uKNN, {}, 'XGBOD_uKNN'),
+        (XGBOD_uIForest, {}, 'XGBOD_uIForest'),
+        (XGBOD_u2, {}, 'XGBOD_u2'),
+        (XGBOD_u3, {}, 'XGBOD_u3'),
+        (XGBOD_u4, {}, 'XGBOD_u4'),
+        (XGBOD, {}, 'XGBOD'),
+        (XGBClassifier, {
+            'n_estimators': 10,
+            'max_depth': 6,
+            'learning_rate': 0.1,
+            'objective': 'binary:logistic',
+        }, 'XGBoost')
+    ]
 
-    # 调用封装函数运行每个模型
-    clf_params = {}
-    run_model(XGBOD_uHBOS, clf_params, 'XGBOD_uHBOS', 'XGBOD_uHBOS', da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin,
-                    ymax, deposit)
-    run_model(XGBOD_uLOF, clf_params, 'XGBOD_uLOF', 'XGBOD_uLOF', da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin, ymax,
-                    deposit)
-    run_model(XGBOD_uOCSVM, clf_params, 'XGBOD_uOCSVM', 'XGBOD_uOCSVM', da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin,
-                    ymax, deposit)
-    run_model(XGBOD_uKNN, clf_params, 'XGBOD_uKNN', 'XGBOD_uKNN', da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin, ymax,
-                    deposit)
-    run_model(XGBOD_uIForest, clf_params, 'XGBOD_uIForest', 'XGBOD_uIForest', da, dep, ncases, d, colNum, linNum, xmin, xmax,
-                    ymin, ymax, deposit)
-    run_model(XGBOD_u2, clf_params, 'XGBOD_u2', 'XGBOD_u2', da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin, ymax,
-                    deposit)
-    run_model(XGBOD_u3, clf_params, 'XGBOD_u3', 'XGBOD_u3', da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin, ymax,
-                    deposit)
-    run_model(XGBOD_u4, clf_params, 'XGBOD_u4', 'XGBOD_u4', da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin, ymax,
-                    deposit)
-    run_model(XGBOD, clf_params, 'XGBOD', 'XGBOD', da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin, ymax, deposit)
-    clf_params = {
-        'n_estimators': 10,  # 决策树的数量
-        'max_depth': 6,  # 每棵决策树的最大深度
-        'learning_rate': 0.1,  # 学习率
-        'objective': 'binary:logistic',  # 二元分类问题
-    }
-    run_model(XGBClassifier, clf_params, 'XGBoost', 'XGBoost', da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin, ymax,
-                    deposit)
+    # Run models in parallel
+    Parallel(n_jobs=-1)(
+        delayed(run_model)(clf, params, name, name, da, dep, ncases, d, colNum, linNum, xmin, xmax, ymin, ymax, deposit)
+        for clf, params, name in models)
+
+print("Processing complete!")
 
     print ("OK!")
