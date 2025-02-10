@@ -46,8 +46,6 @@ class XGBOD_u2(BaseDetector):
     def _init_detectors(self, X):
         knn = KNN()
         hbos = HBOS()
-
-
         detectors = [knn, hbos]
         standardization_flags = [True, True]
 
