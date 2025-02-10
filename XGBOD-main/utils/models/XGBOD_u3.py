@@ -26,7 +26,6 @@ class XGBOD_u3(BaseDetector):
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
-        # self.silent = silent
         self.objective = objective
         self.booster = booster
         self.n_jobs = n_jobs
@@ -75,7 +74,6 @@ class XGBOD_u3(BaseDetector):
         self.X_train_new = np.concatenate((X, self.X_train_add), axis=1)
 
         self.clf = XGBClassifier(max_depth=self.max_depth, learning_rate=self.learning_rate, n_estimators=self.n_estimators,
-                                 # silent=self.silent,
                                  objective=self.objective, booster=self.booster, n_jobs=self.n_jobs,
                                  nthread=self.nthread, gamma=self.gamma, min_child_weight=self.min_child_weight,
                                  max_delta_step=self.max_delta_step, subsample=self.subsample,
@@ -91,7 +89,7 @@ class XGBOD_u3(BaseDetector):
         return self
 
     def decision_function(self, X):
-        check_is_fitted(self, ['clf', 'decision_scores', 'labels', 'scaler'])
+        check_is_fitted(self, ['clf', 'decision_scores_', 'labels', 'scaler'])
 
         X = check_array(X)
 
@@ -110,7 +108,7 @@ class XGBOD_u3(BaseDetector):
         return pred_scores.ravel()
 
     def predict(self, X):
-        check_is_fitted(self, ['clf', 'decision_scores', 'labels', 'scaler'])
+        check_is_fitted(self, ['clf', 'decision_scores_', 'labels', 'scaler'])
 
         X = check_array(X)
 
