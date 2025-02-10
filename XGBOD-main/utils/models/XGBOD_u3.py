@@ -47,7 +47,6 @@ class XGBOD_u3(BaseDetector):
         knn = KNN()
         hbos = HBOS()
         ocsvm = OCSVM()
-
         detectors = [knn, hbos, ocsvm]
         standardization_flags = [True, True, True]
 
