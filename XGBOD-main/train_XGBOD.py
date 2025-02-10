@@ -59,7 +59,7 @@ def run_model(clf_class, clf_params, clf_name, file_prefix, da, dep, ncases, d, 
     precision, recall, _ = precision_recall_curve(dep, decision_scores)
 
     # Save precision-recall data to file
-    file_path = f'C:\\Users\\DELL\\Desktop\\PR_Curve_Files\\{file_prefix}.txt'
+    file_path = os.path.join('C:\\Users\\DELL\\Desktop\\PR_Curve_Files', f'{file_prefix}.txt')
     with open(file_path, 'w') as file:
         for p, r in zip(precision, recall):
             file.write(f'{p}\t{r}\n')
@@ -68,7 +68,7 @@ def run_model(clf_class, clf_params, clf_name, file_prefix, da, dep, ncases, d, 
 if __name__ == '__main__':
     # Define control parameters
     bins = 500
-    deposits = 500  # Maximum number of input mineral deposits
+    max_input_deposits = 500  # Maximum number of input mineral deposits
     tolerance = 0
 
     # Define the study area boundaries
