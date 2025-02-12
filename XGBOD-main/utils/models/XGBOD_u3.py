@@ -1,10 +1,8 @@
-# 导入所需的库和模块
 import numpy as np
 from pyod.models.hbos import HBOS
 from sklearn.metrics import roc_auc_score
 from sklearn.utils import check_array
-from sklearn.utils.validation import check_X_y
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_X_y, check_is_fitted
 from pyod.models.knn import KNN
 from pyod.models.ocsvm import OCSVM
 from pyod.models.lof import LOF
@@ -13,16 +11,19 @@ from pyod.models.abod import ABOD
 from pyod.models.kde import KDE
 from xgboost.sklearn import XGBClassifier
 from pyod.models.base import BaseDetector
-from pyod.utils.utility import check_parameter
-from pyod.utils.utility import check_detector
-from pyod.utils.utility import standardizer
-from pyod.utils.utility import precision_n_scores
+from pyod.utils.utility import check_parameter, check_detector, standardizer, precision_n_scores
 
 class XGBOD_u3(BaseDetector):
+    """
+    XGBOD_u3 is an unsupervised outlier detection algorithm that integrates multiple
+    anomaly detection models (KNN, HBOS, OCSVM) and uses XGBoost for classification.
+    """
+
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, objective="binary:logistic", booster='gbtree',
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
                  colsample_bylevel=1, reg_alpha=0, reg_lambda=1, scale_pos_weight=1, base_score=0.5, random_state=0, **kwargs):
         super(XGBOD_u3, self).__init__()
+        # Hyperparameters for XGBoost model
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_estimators = n_estimators
@@ -44,15 +45,20 @@ class XGBOD_u3(BaseDetector):
         self.kwargs = kwargs
 
     def _init_detectors(self, X):
+        """
+        Initialize anomaly detection models: KNN, HBOS, OCSVM.
+        """
         knn = KNN()
         hbos = HBOS()
         ocsvm = OCSVM()
         detectors = [knn, hbos, ocsvm]
         standardization_flags = [True, True, True]
-
         return detectors, standardization_flags
 
     def fit(self, X, y):
+        """
+        Fit the XGBOD_u3 model to the training data X and labels y.
+        """
         X, y = check_X_y(X, y)
         X = check_array(X)
         self._set_n_classes(y)
@@ -88,8 +94,10 @@ class XGBOD_u3(BaseDetector):
         return self
 
     def decision_function(self, X):
-        check_is_fitted(self, ['clf', 'decision_scores_', 'labels', 'scaler'])
-
+        """
+        Compute decision scores for the input data X.
+        """
+        check_is_fitted(self, ['clf', 'decision_scores_', 'labels_', 'scaler'])
         X = check_array(X)
 
         X_add = np.zeros([X.shape[0], self.n_detectors])
@@ -102,13 +110,14 @@ class XGBOD_u3(BaseDetector):
                 X_add[:, i] = detector.decision_function(X)
 
         X_new = np.concatenate((X, X_add), axis=1)
-
         pred_scores = self.clf.predict_proba(X_new)[:, 1]
         return pred_scores.ravel()
 
     def predict(self, X):
-        check_is_fitted(self, ['clf', 'decision_scores_', 'labels', 'scaler'])
-
+        """
+        Predict labels for the input data X.
+        """
+        check_is_fitted(self, ['clf', 'decision_scores_', 'labels_', 'scaler'])
         X = check_array(X)
 
         X_add = np.zeros([X.shape[0], self.n_detectors])
@@ -121,18 +130,26 @@ class XGBOD_u3(BaseDetector):
                 X_add[:, i] = detector.decision_function(X)
 
         X_new = np.concatenate((X, X_add), axis=1)
-
         pred_labels = self.clf.predict(X_new)
         return pred_labels.ravel()
 
     def predict_proba(self, X):
+        """
+        Return the decision scores as probabilities.
+        """
         return self.decision_function(X)
 
     def fit_predict(self, X, y):
+        """
+        Fit the model and return predicted labels for the input data X.
+        """
         self.fit(X, y)
         return self.labels_
 
     def fit_predict_score(self, X, y, scoring='roc_auc_score'):
+        """
+        Fit the model and return predicted labels along with a performance score (ROC AUC or Precision @ rank n).
+        """
         self.fit(X, y)
 
         if scoring == 'roc_auc_score':
@@ -142,6 +159,5 @@ class XGBOD_u3(BaseDetector):
         else:
             raise NotImplementedError('PyOD built-in scoring only supports ROC and Precision @ rank n')
 
-        print("{metric}: {score}".format(metric=scoring, score=score))
-
+        print(f"{scoring}: {score}")
         return score
