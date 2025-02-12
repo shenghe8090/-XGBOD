@@ -1,25 +1,30 @@
-# 导入所需的库和模块
 import numpy as np
+from pyod.models.hbos import HBOS
 from sklearn.metrics import roc_auc_score
 from sklearn.utils import check_array
-from sklearn.utils.validation import check_X_y
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_X_y, check_is_fitted
 from pyod.models.knn import KNN
+from pyod.models.lof import LOF
 from pyod.models.ocsvm import OCSVM
 from pyod.models.iforest import IForest
 from pyod.models.abod import ABOD
 from pyod.models.kde import KDE
 from xgboost.sklearn import XGBClassifier
 from pyod.models.base import BaseDetector
-from pyod.utils.utility import check_parameter
-from pyod.utils.utility import check_detector
-from pyod.utils.utility import standardizer
-from pyod.utils.utility import precision_n_scores
+from pyod.utils.utility import check_parameter, check_detector, standardizer, precision_n_scores
 
 class XGBOD_uIForest(BaseDetector):
+    """
+    XGBOD_uIForest is an unsupervised outlier detection algorithm that integrates the IForest
+    anomaly detection model and uses XGBoost for classification.
+    """
+
     def __init__(self, max_depth=3, learning_rate=0.1, n_estimators=100, objective="binary:logistic", booster='gbtree',
                  n_jobs=1, nthread=None, gamma=0, min_child_weight=1, max_delta_step=0, subsample=1, colsample_bytree=1,
                  colsample_bylevel=1, reg_alpha=0, reg_lambda=1, scale_pos_weight=1, base_score=0.5, random_state=0, **kwargs):
+        """
+        Initialize XGBOD_uIForest with hyperparameters for the XGBoost classifier.
+        """
         super(XGBOD_uIForest, self).__init__()
         self.max_depth = max_depth
         self.learning_rate = learning_rate
@@ -42,13 +47,20 @@ class XGBOD_uIForest(BaseDetector):
         self.kwargs = kwargs
 
     def _init_detectors(self, X):
+        """
+        Initialize the IForest detector.
+
+        This method can be extended to support more detectors.
+        """
         iforest = IForest()
         detectors = [iforest]
-        standardization_flags = [False]
-
+        standardization_flags = [False]  # IForest does not require standardization
         return detectors, standardization_flags
 
     def fit(self, X, y):
+        """
+        Fit the XGBOD_uIForest model to the training data X and labels y.
+        """
         X, y = check_X_y(X, y)
         X = check_array(X)
         self._set_n_classes(y)
@@ -83,11 +95,10 @@ class XGBOD_uIForest(BaseDetector):
 
         return self
 
-    def decision_function(self, X):
-        check_is_fitted(self, ['clf', 'decision_scores_', 'labels', 'scaler'])
-
-        X = check_array(X)
-
+    def _get_detector_scores(self, X):
+        """
+        Get the decision score from the IForest detector.
+        """
         X_add = np.zeros([X.shape[0], self.n_detectors])
         X_norm = self.scaler.transform(X)
 
@@ -97,38 +108,47 @@ class XGBOD_uIForest(BaseDetector):
             else:
                 X_add[:, i] = detector.decision_function(X)
 
-        X_new = np.concatenate((X, X_add), axis=1)
+        return X_add
 
+    def decision_function(self, X):
+        """
+        Compute decision scores for the input data X.
+        """
+        check_is_fitted(self, ['clf', 'decision_scores_', 'labels_', 'scaler'])
+        X = check_array(X)
+        X_add = self._get_detector_scores(X)
+        X_new = np.concatenate((X, X_add), axis=1)
         pred_scores = self.clf.predict_proba(X_new)[:, 1]
         return pred_scores.ravel()
 
     def predict(self, X):
-        check_is_fitted(self, ['clf', 'decision_scores_', 'labels', 'scaler'])
-
+        """
+        Predict labels for the input data X.
+        """
+        check_is_fitted(self, ['clf', 'decision_scores_', 'labels_', 'scaler'])
         X = check_array(X)
-
-        X_add = np.zeros([X.shape[0], self.n_detectors])
-        X_norm = self.scaler.transform(X)
-
-        for i, detector in enumerate(self.detectors):
-            if self.standardization_flags[i]:
-                X_add[:, i] = detector.decision_function(X_norm)
-            else:
-                X_add[:, i] = detector.decision_function(X)
-
+        X_add = self._get_detector_scores(X)
         X_new = np.concatenate((X, X_add), axis=1)
-
         pred_labels = self.clf.predict(X_new)
         return pred_labels.ravel()
 
     def predict_proba(self, X):
+        """
+        Return the decision scores as probabilities.
+        """
         return self.decision_function(X)
 
     def fit_predict(self, X, y):
+        """
+        Fit the model and return predicted labels for the input data X.
+        """
         self.fit(X, y)
         return self.labels_
 
     def fit_predict_score(self, X, y, scoring='roc_auc_score'):
+        """
+        Fit the model and return predicted labels along with a performance score (ROC AUC or Precision @ rank n).
+        """
         self.fit(X, y)
 
         if scoring == 'roc_auc_score':
@@ -136,8 +156,7 @@ class XGBOD_uIForest(BaseDetector):
         elif scoring == 'prc_n_score':
             score = precision_n_scores(y, self.decision_scores_)
         else:
-            raise NotImplementedError('PyOD built-in scoring only supports ROC and Precision @ rank n')
+            raise NotImplementedError('Only ROC and Precision @ rank n are supported.')
 
         print("{metric}: {score}".format(metric=scoring, score=score))
-
         return score
